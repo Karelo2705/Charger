@@ -29,7 +29,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 #define BMS_CAN_ID 0x1806E5F4 // ID of message we send to Charger with target Voltage, Current and charging state
-#define CCS_CAN_ID 0x18FF50E5 // ID of message we should recive from Charger with it's current Temperature, Charging Current, Charging Voltage and SoC
+#define CCS_CAN_ID 0x18FF50E5 // ID of message we should receive from Charger with it's current Temperature, Charging Current, Charging Voltage and SoC
 
 #define SOC_THRESHOLD 90
 #define CAN_MSG_DLC 8
@@ -58,9 +58,9 @@
 #define COMMUNICATION_STATE_FLAG 4
 
 /*Definition of flags*/
-/*Hardware Faliure flags*/
+/*Hardware Failure flags*/
 #define NORMAL 0
-#define HARDWARE_FALIURE 1
+#define HARDWARE_FAILURE 1
 /*Temperature of Charger flags*/
 #define NORMAL_TEMPERATURE 0
 #define OVER_TEMPERATURE_PROTECTION 1
@@ -73,6 +73,10 @@
 /*Communication State flags*/
 #define NORMAL_COMMUNICATION 0
 #define COMMUNACTION_TIMED_OUT 1
+
+#define MAX_TEMPERATURE 40
+#define MAX_CHARGING_CURRENT 20
+#define MAX_CHARGING_VOLTAGE 50
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -89,6 +93,15 @@
 CAN_HandleTypeDef hcan1;
 
 /* USER CODE BEGIN PV */
+CAN_FilterTypeDef canfilterconfig;
+CAN_RxHeaderTypeDef RxHeader;
+CAN_TxHeaderTypeDef TxHeader;
+
+uint32_t TxMailbox;
+
+uint8_t TxData[8];
+uint8_t RxData[8];
+
 
 /* USER CODE END PV */
 
@@ -99,7 +112,7 @@ static void MX_CAN1_Init(void);
 
 /* USER CODE BEGIN PFP */
 void SendCANMessage(unsigned long id, uint8_t* data, int length);
-uint8_t ReceiveChargerCANMessage(unsigned long id);
+void ReceiveChargerCANMessage(unsigned long id);
 int GetChargingState(float soc, float temperature, float chargingCurrent, float chargingVoltage);
 void ChargingStateAlgorithm();
 void EncodeDataForCAN(uint8_t *dataForCAN);
@@ -125,8 +138,8 @@ float chargingCurrent;
 float chargingVoltage;
 
 /*Variables received from different sources*/
-float soc;
-float hottestCellTemperature;
+float soc = 20;
+float hottestCellTemperature = 50;
 /* USER CODE END 0 */
 
 /**
@@ -159,7 +172,7 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_CAN_Start(&hcan1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -167,7 +180,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  ChargingStateAlgorithm();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -270,11 +283,34 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void SendCANMessage(unsigned long id, uint8_t* data, int length) {
-
+	  TxHeader.IDE = CAN_ID_STD;
+	  TxHeader.StdId = id;
+	  TxHeader.RTR = CAN_RTR_DATA;
+	  TxHeader.DLC = length;
+	  if (HAL_CAN_AddTxMessage(&hcan1, &TxHeader, data, &TxMailbox) != HAL_OK)
+	  	{
+	  	   Error_Handler ();
+	  	}
 }
 
-uint8_t ReceiveChargerCANMessage(unsigned long id){
+void ReceiveChargerCANMessage(unsigned long id){
+	canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
+	  canfilterconfig.FilterBank = 18;  // which filter bank to use from the assigned ones
+	  canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	  canfilterconfig.FilterIdHigh = id<<5;
+	  canfilterconfig.FilterIdLow = 0;
+	  canfilterconfig.FilterMaskIdHigh = id<<5;
+	  canfilterconfig.FilterMaskIdLow = 0x0000;
+	  canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
+	  canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
+	  canfilterconfig.SlaveStartFilterBank = 20;  // how many filters to assign to the CAN1 (master can)
 
+	  HAL_CAN_ConfigFilter(&hcan1, &canfilterconfig);
+
+	  if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
 }
 
 int GetChargingState(float soc, float temperature, float chargingCurrent, float chargingVoltage){
@@ -306,22 +342,22 @@ int GetChargingState(float soc, float temperature, float chargingCurrent, float 
 
 void ChargingStateAlgorithm() {
 
-    receiveChargerCANMessage(CCS_CAN_ID);
+    ReceiveChargerCANMessage(CCS_CAN_ID);
+    DecodeChargerMessage(RxData);
 
-    targetMaxCurrent = calculateChargingCurrent(hottestCellTemperature, targetMaxVoltage);
-
-    int chargingState = getChargingState(soc, hottestCellTemperature, chargingCurrent, chargingVoltage);
+    int chargingState = GetChargingState(soc, hottestCellTemperature, chargingCurrent, chargingVoltage);
 
     uint8_t CAN_data[CAN_MSG_DLC];
-    EncodeDataForCAN(CAN_data);
 
     if(chargingState == CHARGING_STATE_ON){
         CAN_data[CHARGING_STATE_INDEX] = CHARGING_STATE_ON;
+        EncodeDataForCAN(CAN_data);
         SendCANMessage(BMS_CAN_ID, CAN_data, CAN_MSG_DLC);
     }
 
     else{
         CAN_data[CHARGING_STATE_INDEX] = CHARGING_STATE_OFF;
+        EncodeDataForCAN(CAN_data);
         SendCANMessage(BMS_CAN_ID, CAN_data, CAN_MSG_DLC);
     }
 
@@ -355,47 +391,7 @@ void DecodeChargerMessage(uint8_t *dataFromCharger){
 }
 
 
-bool IsHardwareFaluireFlagSet(uint8_t chargerFlags){
-    if ((chargerFlags & HARDWARE_FAILURE_FLAG) == HARDWARE_FAILURE_FLAG){
-        return HARDWARE_FALIURE; // Hardware faliure flag is set
-    }
 
-    return NORMAL; //Hardware faliure flag is not set
-}
-
-bool IsTemperatureFlagSet(uint8_t chargerFlags) {
-    if ((chargerFlags & TEMPERATURE_OF_CHARGER_FLAG) == TEMPERATURE_OF_CHARGER_FLAG) {
-        return OVER_TEMPERATURE_PROTECTION; // Temperature flag is set
-    }
-
-    return NORMAL_TEMPERATURE; // Temperature flag is not set
-}
-
-bool IsInputVoltageFlagSet(uint8_t chargerFlags) {
-    if ((chargerFlags &  INPUT_VOLTAGE_FLAG) == INPUT_VOLTAGE_FLAG) {
-        return WRONG_INPUT_VOLTAGE; // Input voltage flag is set
-    }
-
-    return NORMAL_INPUT_VOLTAGE; // Input voltage flag is not set
-}
-
-bool IsStartingStateFlagSet(uint8_t chargerFlags) {
-    if ((chargerFlags & STARTING_STATE_FLAG) == STARTING_STATE_FLAG) {
-        return BATTERY_NOT_DETECTED; // Starting state flag is set
-    }
-
-    return BATTERY_DETECTED; // Starting state flag is not set
-}
-
-bool IsCommunicationFlagSet(uint8_t chargerFlags) {
-    if ((chargerFlags & COMMUNICATION_STATE_FLAG)== COMMUNICATION_STATE_FLAG) {
-        return COMMUNACTION_TIMED_OUT; // Communication flag is set
-    }
-
-    return NORMAL_COMMUNICATION; // Communication flag is not set
-}
-
-int calculateChargingCurrent(int temperature, int voltage){
 }
 /* USER CODE END 4 */
 

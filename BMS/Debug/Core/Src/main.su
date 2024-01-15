@@ -1,0 +1,17 @@
+../Core/Src/main.c:149:5:main	8	static
+../Core/Src/main.c:193:6:SystemClock_Config	88	static
+../Core/Src/main.c:235:13:MX_CAN1_Init	8	static
+../Core/Src/main.c:272:13:MX_GPIO_Init	16	static
+../Core/Src/main.c:285:6:SendCANMessage	24	static
+../Core/Src/main.c:296:6:ReceiveChargerCANMessage	16	static
+../Core/Src/main.c:316:5:GetChargingState	24	static
+../Core/Src/main.c:343:6:ChargingStateAlgorithm	24	static
+../Core/Src/main.c:367:6:EncodeDataForCAN	24	static
+../Core/Src/main.c:383:6:DecodeChargerMessage	24	static
+../Core/Src/main.c:395:6:IsHardwareFaluireFlagSet	16	static
+../Core/Src/main.c:403:6:IsTemperatureFlagSet	16	static
+../Core/Src/main.c:411:6:IsInputVoltageFlagSet	16	static
+../Core/Src/main.c:419:6:IsStartingStateFlagSet	16	static
+../Core/Src/main.c:427:6:IsCommunicationFlagSet	16	static
+../Core/Src/main.c:435:5:calculateChargingCurrent	16	static
+../Core/Src/main.c:445:6:Error_Handler	4	static,ignoring_inline_asm

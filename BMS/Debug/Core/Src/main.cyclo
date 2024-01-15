@@ -1,0 +1,17 @@
+../Core/Src/main.c:149:5:main	1
+../Core/Src/main.c:193:6:SystemClock_Config	3
+../Core/Src/main.c:235:13:MX_CAN1_Init	2
+../Core/Src/main.c:272:13:MX_GPIO_Init	1
+../Core/Src/main.c:285:6:SendCANMessage	2
+../Core/Src/main.c:296:6:ReceiveChargerCANMessage	2
+../Core/Src/main.c:316:5:GetChargingState	5
+../Core/Src/main.c:343:6:ChargingStateAlgorithm	2
+../Core/Src/main.c:367:6:EncodeDataForCAN	1
+../Core/Src/main.c:383:6:DecodeChargerMessage	1
+../Core/Src/main.c:395:6:IsHardwareFaluireFlagSet	1
+../Core/Src/main.c:403:6:IsTemperatureFlagSet	2
+../Core/Src/main.c:411:6:IsInputVoltageFlagSet	2
+../Core/Src/main.c:419:6:IsStartingStateFlagSet	2
+../Core/Src/main.c:427:6:IsCommunicationFlagSet	2
+../Core/Src/main.c:435:5:calculateChargingCurrent	1
+../Core/Src/main.c:445:6:Error_Handler	1
